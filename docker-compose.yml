@@ -1,0 +1,126 @@
+version: "3.9"
+
+services:
+  consul:
+    image: consul:1.15
+    container_name: consul
+    ports:
+      - "8500:8500"
+    command: agent -dev -client=0.0.0.0
+    networks:
+      - apiwatch-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/status/leader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - apiwatch-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth:
+    build: ./services/auth
+    container_name: auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      MONGO_URI: mongodb://admin:password123@mongodb:27017/apiwatch?authSource=admin
+      JWT_SECRET: supersecretkey_change_in_prod
+      JWT_EXPIRES_IN: 7d
+      CONSUL_HOST: consul
+      CONSUL_PORT: 8500
+      SERVICE_NAME: auth-service
+      SERVICE_HOST: auth
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - apiwatch-net
+    restart: unless-stopped
+
+  gateway:
+    build: ./services/gateway
+    container_name: gateway-service
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      JWT_SECRET: supersecretkey_change_in_prod
+      CONSUL_HOST: consul
+      CONSUL_PORT: 8500
+      SERVICE_NAME: gateway-service
+      SERVICE_HOST: gateway
+    depends_on:
+      - auth
+    networks:
+      - apiwatch-net
+    restart: unless-stopped
+
+  monitor:
+    build: ./services/monitor
+    container_name: monitor-service
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      MONGO_URI: mongodb://admin:password123@mongodb:27017/apiwatch?authSource=admin
+      JWT_SECRET: supersecretkey_change_in_prod
+      CONSUL_HOST: consul
+      CONSUL_PORT: 8500
+      SERVICE_NAME: monitor-service
+      SERVICE_HOST: monitor
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - apiwatch-net
+    restart: unless-stopped
+
+  graphql:
+    build: ./services/graphql
+    container_name: graphql-service
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      MONGO_URI: mongodb://admin:password123@mongodb:27017/apiwatch?authSource=admin
+      JWT_SECRET: supersecretkey_change_in_prod
+      CONSUL_HOST: consul
+      CONSUL_PORT: 8500
+      SERVICE_NAME: graphql-service
+      SERVICE_HOST: graphql
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    networks:
+      - apiwatch-net
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+
+networks:
+  apiwatch-net:
+    driver: bridge
