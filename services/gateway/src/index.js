@@ -14,6 +14,7 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", service: "gateway-service" });
 });
 
+// Public auth routes — no JWT needed
 app.use("/auth", async (req, res, next) => {
   try {
     const url = await getServiceUrl("auth-service");
@@ -23,6 +24,7 @@ app.use("/auth", async (req, res, next) => {
   }
 });
 
+// Protected endpoint routes — JWT required
 app.use("/endpoints", protect, async (req, res, next) => {
   try {
     const url = await getServiceUrl("monitor-service");
@@ -32,6 +34,7 @@ app.use("/endpoints", protect, async (req, res, next) => {
   }
 });
 
+// GraphQL route — JWT required (Day 3)
 app.use("/graphql", protect, async (req, res, next) => {
   try {
     const url = await getServiceUrl("graphql-service");

@@ -25,37 +25,43 @@ const signToken = (userId) =>
  *             properties:
  *               name:
  *                 type: string
- *                 example: Amithava Varma
  *               email:
  *                 type: string
- *                 example: amithava@example.com
  *               password:
  *                 type: string
- *                 example: mypassword123
  *     responses:
  *       201:
- *         description: User registered, JWT returned
- *       400:
- *         description: Validation error or duplicate email
+ *         description: User registered
  */
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.body || {};
+
     if (!name || !email || !password) {
-      return res.status(400).json({ status: "error", message: "name, email, and password are required" });
+      return res.status(400).json({ 
+        status: "error", 
+        message: "name, email, and password are required" 
+      });
     }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ status: "error", message: "Email already registered" });
+      return res.status(400).json({ 
+        status: "error", 
+        message: "Email already registered" 
+      });
     }
+
     const user = await User.create({ name, email, password });
     const token = signToken(user._id);
+
     res.status(201).json({
       status: "success",
       token,
       data: { user: { id: user._id, name: user.name, email: user.email } },
     });
   } catch (err) {
+    console.error("Register error:", err.message);
     res.status(500).json({ status: "error", message: err.message });
   }
 });
@@ -64,7 +70,7 @@ router.post("/register", async (req, res) => {
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Login and receive a JWT
+ *     summary: Login
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -76,33 +82,40 @@ router.post("/register", async (req, res) => {
  *             properties:
  *               email:
  *                 type: string
- *                 example: amithava@example.com
  *               password:
  *                 type: string
- *                 example: mypassword123
  *     responses:
  *       200:
- *         description: Login successful, JWT returned
- *       401:
- *         description: Invalid credentials
+ *         description: Login successful
  */
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
+
     if (!email || !password) {
-      return res.status(400).json({ status: "error", message: "email and password are required" });
+      return res.status(400).json({ 
+        status: "error", 
+        message: "email and password are required" 
+      });
     }
+
     const user = await User.findOne({ email }).select("+password");
     if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ status: "error", message: "Invalid email or password" });
+      return res.status(401).json({ 
+        status: "error", 
+        message: "Invalid email or password" 
+      });
     }
+
     const token = signToken(user._id);
+
     res.status(200).json({
       status: "success",
       token,
       data: { user: { id: user._id, name: user.name, email: user.email } },
     });
   } catch (err) {
+    console.error("Login error:", err.message);
     res.status(500).json({ status: "error", message: err.message });
   }
 });
@@ -111,15 +124,13 @@ router.post("/login", async (req, res) => {
  * @swagger
  * /auth/me:
  *   get:
- *     summary: Get current user from JWT
+ *     summary: Get current user
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Current user data
- *       401:
- *         description: No token or invalid token
  */
 router.get("/me", async (req, res) => {
   try {
@@ -127,18 +138,21 @@ router.get("/me", async (req, res) => {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ status: "error", message: "No token provided" });
     }
+
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
+
     if (!user) {
-      return res.status(401).json({ status: "error", message: "User no longer exists" });
+      return res.status(401).json({ status: "error", message: "User not found" });
     }
+
     res.status(200).json({
       status: "success",
       data: { user: { id: user._id, name: user.name, email: user.email } },
     });
   } catch (err) {
-    res.status(401).json({ status: "error", message: "Invalid or expired token" });
+    res.status(401).json({ status: "error", message: "Invalid token" });
   }
 });
 

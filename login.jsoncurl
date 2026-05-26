@@ -1,0 +1,1 @@
+{"email":"test@test.com","password":"test1234"}  -X POST http://localhost:3000/auth/login -H "Content-Type: application/json" -d @login.json

@@ -9,7 +9,21 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+
+// CRITICAL FIX: Parse JSON with error handling
+app.use(express.json({ 
+  limit: '10mb',
+  strict: false 
+}));
+
+// Error handler for JSON parsing
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error("JSON Parse Error:", err.message);
+    return res.status(400).json({ status: "error", message: "Invalid JSON" });
+  }
+  next(err);
+});
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/auth", authRoutes);
@@ -20,6 +34,7 @@ app.get("/health", (req, res) => {
 
 const start = async () => {
   await connectDB();
+
   app.listen(PORT, async () => {
     console.log(`Auth service running on port ${PORT}`);
     console.log(`Swagger docs at http://localhost:${PORT}/docs`);
@@ -27,4 +42,7 @@ const start = async () => {
   });
 };
 
-start();
+start().catch(err => {
+  console.error("Fatal startup error:", err);
+  process.exit(1);
+});
